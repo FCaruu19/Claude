@@ -89,8 +89,10 @@ td.x{width:1%;white-space:nowrap;text-align:right}
 <div class="app">
   <header>
     <h1>Contracciones</h1>
-    <span class="sync">Se guarda en este celular</span>
+    <span class="sync" id="sync">Revisando…</span>
   </header>
+
+  <div class="note warn" id="store-warn" hidden></div>
 
   <nav class="tabs" role="tablist">
     <button role="tab" id="t-contar" aria-selected="true" data-tab="contar">Contar</button>
@@ -145,7 +147,30 @@ td.x{width:1%;white-space:nowrap;text-align:right}
   function loadLocal(){
     try{ const s = JSON.parse(localStorage.getItem(LS) || "null"); if(s && Array.isArray(s.items)) state = { items:s.items, active:s.active ?? null }; }catch(e){}
   }
-  function saveLocal(){ try{ localStorage.setItem(LS, JSON.stringify(state)); }catch(e){} }
+  let storeOK = true;
+  function saveLocal(){
+    try{ const txt = JSON.stringify(state); localStorage.setItem(LS, txt); storeOK = localStorage.getItem(LS) === txt; }
+    catch(e){ storeOK = false; }
+    showStore();
+  }
+  function showStore(){
+    const ua = navigator.userAgent || "";
+    const inApp = /Instagram|FBAN|FBAV|FB_IAB|WhatsApp|Line\/|; wv\)|GSA\//.test(ua);
+    const n = state.items.length;
+    const w = document.getElementById("store-warn"), sy = document.getElementById("sync");
+    if(!storeOK){
+      sy.textContent = "No se está guardando";
+      w.innerHTML = "<b>Este navegador no está guardando nada.</b> Casi siempre es porque está en modo incógnito o privado, o porque tiene bloqueadas las cookies y los datos de sitios. Abrila en una pestaña normal de Chrome o Safari.";
+      w.hidden = false;
+    } else if(inApp){
+      sy.textContent = "Guardado: " + n;
+      w.innerHTML = "<b>La abriste desde dentro de otra app</b> (WhatsApp, Instagram o similar). Ahí el historial se puede borrar al cerrarla. Copiá el link y abrilo en Chrome o Safari.";
+      w.hidden = false;
+    } else {
+      sy.textContent = "Guardadas en este celular: " + n;
+      w.hidden = true;
+    }
+  }
 
   // ---------- formato ----------
   const pad = n => String(n).padStart(2,"0");
@@ -305,7 +330,7 @@ td.x{width:1%;white-space:nowrap;text-align:right}
   });
   document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ if(state.active != null) keepAwake(true); render(); } });
 
-  loadLocal();
+  loadLocal(); saveLocal();
   try{ const tab = localStorage.getItem(LS+".tab"); if(tab) document.querySelector(`[data-tab="${tab}"]`)?.click(); }catch(e){}
   render();
   setInterval(() => { if(state.active != null) renderButton(); else if(Date.now() % 15000 < 1000) render(); }, 1000);
