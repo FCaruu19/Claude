@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Contracciones">
+<meta name="theme-color" content="#8a3f7a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%238a3f7a'/%3E%3Ccircle cx='50' cy='50' r='20' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%238a3f7a'/%3E%3Ccircle cx='50' cy='50' r='22' fill='%23fff'/%3E%3C/svg%3E">
+<title>Contador de Contracciones</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+/* Layout: one-screen app, tabs arriba, un botón circular grande al centro, listas debajo */
+:root{
+  --bg:#f6f1f7; --surface:#ffffff; --fg:#2a1f33; --muted:#76687f; --line:#e6dcea;
+  --accent:#8a3f7a; --accent-fg:#ffffff; --live:#d2416b; --live-soft:#fbe3ea; --ok:#2f7d5b; --warn:#b5531c; --warn-soft:#fcebdc;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1a1420; --surface:#241c2b; --fg:#f2eaf5; --muted:#a898b2; --line:#3a2f43;
+  --accent:#d38bc4; --accent-fg:#1a1420; --live:#ff6f93; --live-soft:#3d1f2a; --ok:#6fcf9f; --warn:#f0a06a; --warn-soft:#3a2618; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1a1420; --surface:#241c2b; --fg:#f2eaf5; --muted:#a898b2; --line:#3a2f43;
+  --accent:#d38bc4; --accent-fg:#1a1420; --live:#ff6f93; --live-soft:#3d1f2a; --ok:#6fcf9f; --warn:#f0a06a; --warn-soft:#3a2618; color-scheme:dark}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.app{max-width:520px;margin:0 auto;padding-block:12px 40px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+h1{font-family:var(--f-display);font-size:1.25rem;margin:0;font-weight:700}
+.sync{font-size:.75rem;color:var(--muted)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px}
+.tabs button{font:inherit;font-weight:500;border:0;background:transparent;color:var(--muted);padding:10px 4px;border-radius:10px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-fg)}
+.tabs button:focus-visible,.big:focus-visible,.link:focus-visible{outline:3px solid var(--live);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px}
+
+.stage{display:flex;flex-direction:column;align-items:center;gap:14px;padding-block:8px}
+.big{width:min(72vw,280px);aspect-ratio:1;max-width:100%;border-radius:50%;border:0;cursor:pointer;
+  background:var(--accent);color:var(--accent-fg);font-family:var(--f-display);font-weight:700;font-size:1.6rem;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  box-shadow:0 10px 30px -12px color-mix(in srgb,var(--accent) 70%,transparent);touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s}
+.big:active{transform:scale(.97)}
+.big small{font-family:var(--f-body);font-weight:500;font-size:.85rem;opacity:.85}
+.big.live{background:var(--live);box-shadow:0 0 0 0 color-mix(in srgb,var(--live) 50%,transparent);animation:pulse 2s infinite}
+.big .clock{font-size:2.8rem;font-variant-numeric:tabular-nums;line-height:1}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--live) 45%,transparent)}70%{box-shadow:0 0 0 22px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.big.live{animation:none}.big{transition:none}}
+.since{color:var(--muted);font-size:.95rem;text-align:center;min-height:1.4em;font-variant-numeric:tabular-nums}
+.since b{color:var(--fg)}
+
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi span{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kpi b{font-family:var(--f-display);font-size:1.35rem;font-variant-numeric:tabular-nums}
+.kpi em{font-style:normal;font-size:.75rem;color:var(--muted)}
+
+h2{font-family:var(--f-display);font-size:1rem;margin:0;font-weight:700}
+.day{display:flex;flex-direction:column;gap:6px}
+.day h3{margin:0;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;display:flex;justify-content:space-between}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:.92rem}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:0}
+td.num{text-align:right} th.num{text-align:right}
+td.x{width:1%;white-space:nowrap;text-align:right}
+.link{font:inherit;font-size:.8rem;background:none;border:0;color:var(--muted);cursor:pointer;padding:4px 6px;border-radius:6px;text-decoration:underline}
+.link.danger{color:var(--live)}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:18px;color:var(--muted);text-align:center}
+.note{border-radius:12px;padding:12px 14px;font-size:.92rem;background:var(--surface);border:1px solid var(--line)}
+.note.warn{background:var(--warn-soft);border-color:transparent;color:var(--fg)}
+.note.warn b{color:var(--warn)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.muted{color:var(--muted);font-size:.85rem}
+.btn{font:inherit;font-weight:500;font-size:.9rem;border:1px solid var(--accent);color:var(--accent);background:transparent;border-radius:10px;padding:8px 14px;cursor:pointer}
+.btn:focus-visible{outline:3px solid var(--live);outline-offset:2px}
+.pill{display:inline-block;font-size:.72rem;padding:2px 8px;border-radius:999px;background:var(--live-soft);color:var(--live);font-weight:700}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Contracciones</h1>
+    <span class="sync">Se guarda en este celular</span>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="t-contar" aria-selected="true" data-tab="contar">Contar</button>
+    <button role="tab" id="t-hist" aria-selected="false" data-tab="hist">Historial</button>
+    <button role="tab" id="t-res" aria-selected="false" data-tab="res">Resumen</button>
+  </nav>
+
+  <section id="p-contar">
+    <div class="stage">
+      <button class="big" id="big" aria-live="polite"></button>
+      <div class="since" id="since"></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><span>Última duró</span><b id="k-dur">–</b><em>min:seg</em></div>
+      <div class="kpi"><span>Cada cuánto</span><b id="k-int">–</b><em>entre inicios</em></div>
+      <div class="kpi"><span>Última hora</span><b id="k-n">0</b><em>contracciones</em></div>
+    </div>
+    <div class="row"><h2>Últimas</h2><span class="muted" id="undo-slot"></span></div>
+    <div id="recent"></div>
+  </section>
+
+  <section id="p-hist" hidden>
+    <div id="hist"></div>
+  </section>
+
+  <section id="p-res" hidden>
+    <div id="res"></div>
+    <p class="note muted">Duración: desde que empieza hasta que termina. Frecuencia: desde el inicio de una hasta el inicio de la siguiente. Esto es una ayuda para registrar, no reemplaza lo que indique la obstetra.</p>
+    <div class="note">
+      <h2>Copia de respaldo</h2>
+      <p class="muted" style="margin:6px 0 10px">El registro queda en este navegador. Si vas a borrar datos del navegador o cambiar de celular, bajate una copia primero.</p>
+      <div class="row" style="justify-content:flex-start">
+        <button class="btn" id="export">Bajar copia</button>
+        <label class="btn" for="import-file">Cargar copia</label>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+      </div>
+      <p class="muted" id="backup-msg" style="margin:8px 0 0"></p>
+    </div>
+    <div class="row">
+      <span class="muted">Borrar todo el registro</span>
+      <span id="wipe-slot"><button class="link danger" id="wipe">Borrar todo</button></span>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const LS = "contracciones.v1";
+  let state = { items: [], active: null }; // items: [{id,start,end}], active: start ms
+
+  // ---------- persistencia local ----------
+  function loadLocal(){
+    try{ const s = JSON.parse(localStorage.getItem(LS) || "null"); if(s && Array.isArray(s.items)) state = { items:s.items, active:s.active ?? null }; }catch(e){}
+  }
+  function saveLocal(){ try{ localStorage.setItem(LS, JSON.stringify(state)); }catch(e){} }
+
+  // ---------- formato ----------
+  const pad = n => String(n).padStart(2,"0");
+  const mmss = ms => { if(ms == null || ms < 0) return "–"; const s = Math.round(ms/1000); return Math.floor(s/60) + ":" + pad(s%60); };
+  const hhmm = t => { const d = new Date(t); return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()); };
+  const dayKey = t => { const d = new Date(t); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
+  const dayLabel = t => {
+    const k = dayKey(t), today = dayKey(Date.now()), y = dayKey(Date.now()-864e5);
+    if(k === today) return "Hoy"; if(k === y) return "Ayer";
+    return new Date(t).toLocaleDateString("es-AR",{weekday:"long", day:"numeric", month:"long"});
+  };
+  const sinceTxt = ms => { const m = Math.floor(ms/60000); if(m < 60) return m + " min"; return Math.floor(m/60) + " h " + (m%60) + " min"; };
+
+  // ---------- cálculo ----------
+  function done(){ return state.items.filter(i => i.end).sort((a,b)=>a.start-b.start); }
+  function intervalOf(list, idx){ return idx > 0 ? list[idx].start - list[idx-1].start : null; }
+  function lastHour(){
+    const now = Date.now(); const list = done();
+    const inH = list.filter(i => i.start >= now - 3600e3);
+    const durs = inH.map(i => i.end - i.start);
+    const ints = []; list.forEach((it,i) => { if(i>0 && it.start >= now-3600e3) ints.push(it.start - list[i-1].start); });
+    const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+    return { n: inH.length, avgDur: avg(durs), avgInt: avg(ints), list: inH };
+  }
+
+  // ---------- acciones ----------
+  let wakeLock = null;
+  async function keepAwake(on){
+    try{
+      if(on && !wakeLock && navigator.wakeLock){ wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener?.("release",()=>{wakeLock=null}); }
+      if(!on && wakeLock){ await wakeLock.release(); wakeLock = null; }
+    }catch(e){ wakeLock = null; }
+  }
+  function tap(){
+    const now = Date.now();
+    if(navigator.vibrate) try{ navigator.vibrate(40); }catch(e){}
+    if(state.active == null){
+      state.active = now; keepAwake(true);
+    } else {
+      const it = { id: "c" + state.active, start: state.active, end: now };
+      state.items.push(it); state.active = null; lastAdded = it.id; keepAwake(false);
+    }
+    saveLocal(); render();
+  }
+  let lastAdded = null, pendingDel = null, pendingWipe = false;
+  function remove(id){
+    state.items = state.items.filter(i => i.id !== id); pendingDel = null;
+    if(lastAdded === id) lastAdded = null;
+    saveLocal(); render();
+  }
+  function cancelActive(){ state.active = null; saveLocal(); keepAwake(false); render(); }
+
+  // ---------- render ----------
+  const $ = id => document.getElementById(id);
+  function rowsHTML(list, all){
+    return list.map(it => {
+      const idx = all.findIndex(x => x.id === it.id);
+      const int = intervalOf(all, idx);
+      const del = pendingDel === it.id
+        ? `<button class="link danger" data-del="${it.id}">Confirmar</button><button class="link" data-cancel>No</button>`
+        : `<button class="link" data-ask="${it.id}" aria-label="Borrar">Borrar</button>`;
+      return `<tr><td>${hhmm(it.start)}</td><td class="num">${mmss(it.end-it.start)}</td><td class="num">${mmss(int)}</td><td class="x">${del}</td></tr>`;
+    }).join("");
+  }
+  const table = body => `<table><thead><tr><th>Empezó</th><th class="num">Duró</th><th class="num">Cada</th><th></th></tr></thead><tbody>${body}</tbody></table>`;
+
+  function renderButton(){
+    const b = $("big"), now = Date.now();
+    if(state.active != null){
+      b.className = "big live";
+      b.innerHTML = `<span class="clock">${mmss(now - state.active)}</span><span>Terminó</span><small>tocá cuando pase</small>`;
+      $("since").innerHTML = `Empezó a las <b>${hhmm(state.active)}</b> · <button class="link" id="cancel-active">Fue un error</button>`;
+    } else {
+      b.className = "big";
+      b.innerHTML = `<span>Empezó</span><small>tocá al sentir la contracción</small>`;
+      const last = done().slice(-1)[0];
+      $("since").innerHTML = last ? `Pasaron <b>${sinceTxt(now - last.start)}</b> desde el inicio de la última` : `Todavía no hay contracciones registradas`;
+    }
+  }
+  function render(){
+    renderButton();
+    const all = done(), last = all.slice(-1)[0], h = lastHour();
+    $("k-dur").textContent = last ? mmss(last.end - last.start) : "–";
+    $("k-int").textContent = all.length > 1 ? mmss(intervalOf(all, all.length-1)) : "–";
+    $("k-n").textContent = h.n;
+
+    const recent = all.slice(-5).reverse();
+    $("recent").innerHTML = recent.length ? table(rowsHTML(recent, all))
+      : `<div class="empty">Cuando empiece una contracción, tocá el botón. Al terminar, tocalo de nuevo. Acá vas a ver las últimas cinco.</div>`;
+
+    // historial agrupado por día
+    if(!all.length){ $("hist").innerHTML = `<div class="empty">Todavía no hay registros. Lo que marques en "Contar" aparece acá, separado por día.</div>`; }
+    else{
+      const groups = new Map();
+      [...all].reverse().forEach(it => { const k = dayKey(it.start); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(it); });
+      $("hist").innerHTML = [...groups.values()].map(g =>
+        `<div class="day"><h3><span>${dayLabel(g[0].start)}</span><span>${g.length} ${g.length===1?"contracción":"contracciones"}</span></h3>${table(rowsHTML(g, all))}</div>`).join("");
+    }
+
+    // resumen
+    const pattern = h.n >= 6 && h.avgInt != null && h.avgInt <= 5.5*60e3 && h.avgDur != null && h.avgDur >= 50e3;
+    $("res").innerHTML = `
+      <h2>Última hora</h2>
+      <div class="kpis">
+        <div class="kpi"><span>Cantidad</span><b>${h.n}</b><em>contracciones</em></div>
+        <div class="kpi"><span>Duran</span><b>${mmss(h.avgDur)}</b><em>promedio</em></div>
+        <div class="kpi"><span>Cada</span><b>${mmss(h.avgInt)}</b><em>promedio</em></div>
+      </div>
+      ${pattern ? `<div class="note warn"><b>Patrón 5-1-1:</b> en la última hora vienen cada 5 minutos o menos y duran alrededor de 1 minuto. Es la señal que suelen dar las obstetras para llamar o ir a la guardia.</div>`
+                : `<div class="note"><span class="pill">Referencia</span> Muchas obstetras usan la regla 5-1-1: contracciones cada 5 minutos, de 1 minuto de duración, durante 1 hora. La app te avisa acá si se cumple.</div>`}
+      <h2>Total</h2>
+      <div class="kpis">
+        <div class="kpi"><span>Registradas</span><b>${all.length}</b><em>en total</em></div>
+        <div class="kpi"><span>Primera</span><b>${all[0] ? hhmm(all[0].start).slice(0,5) : "–"}</b><em>${all[0] ? dayLabel(all[0].start) : ""}</em></div>
+        <div class="kpi"><span>Última</span><b>${last ? hhmm(last.start).slice(0,5) : "–"}</b><em>${last ? dayLabel(last.start) : ""}</em></div>
+      </div>`;
+    $("wipe-slot").innerHTML = pendingWipe
+      ? `<button class="link danger" id="wipe-yes">Sí, borrar todo</button><button class="link" id="wipe-no">Cancelar</button>`
+      : `<button class="link danger" id="wipe">Borrar todo</button>`;
+  }
+
+  // ---------- eventos ----------
+  $("big").addEventListener("click", tap);
+  document.addEventListener("click", e => {
+    const t = e.target.closest("button"); if(!t) return;
+    if(t.dataset.tab){
+      document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b === t));
+      ["contar","hist","res"].forEach(k => $("p-"+k).hidden = k !== t.dataset.tab);
+      try{ localStorage.setItem(LS+".tab", t.dataset.tab); }catch(err){}
+    }
+    if(t.dataset.ask){ pendingDel = t.dataset.ask; render(); }
+    if(t.dataset.del){ remove(t.dataset.del); }
+    if(t.hasAttribute("data-cancel")){ pendingDel = null; render(); }
+    if(t.id === "cancel-active") cancelActive();
+    if(t.id === "wipe"){ pendingWipe = true; render(); }
+    if(t.id === "wipe-no"){ pendingWipe = false; render(); }
+    if(t.id === "wipe-yes"){ const ids = state.items.map(i=>i.id); state.items = []; state.active = null; pendingWipe = false; saveLocal(); render(); }
+  });
+  document.getElementById("export").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify({app:"contracciones", v:1, exportado:new Date().toISOString(), items:state.items}, null, 1)], {type:"application/json"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = "contracciones-" + dayKey(Date.now()) + ".json"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    $("backup-msg").textContent = "Copia descargada con " + state.items.length + " contracciones.";
+  });
+  document.getElementById("import-file").addEventListener("change", async e => {
+    const f = e.target.files[0]; if(!f) return;
+    try{
+      const data = JSON.parse(await f.text());
+      const list = (data.items || []).filter(i => i && typeof i.start === "number");
+      const map = new Map(state.items.map(i => [i.id, i]));
+      let added = 0; list.forEach(i => { const id = i.id || ("c" + i.start); if(!map.has(id)){ map.set(id, {id, start:i.start, end:i.end ?? null}); added++; } });
+      state.items = [...map.values()].sort((a,b)=>a.start-b.start); saveLocal(); render();
+      $("backup-msg").textContent = "Se cargaron " + added + " contracciones nuevas.";
+    }catch(err){ $("backup-msg").textContent = "Ese archivo no es una copia válida de esta app."; }
+    e.target.value = "";
+  });
+  document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ if(state.active != null) keepAwake(true); render(); } });
+
+  loadLocal();
+  try{ const tab = localStorage.getItem(LS+".tab"); if(tab) document.querySelector(`[data-tab="${tab}"]`)?.click(); }catch(e){}
+  render();
+  setInterval(() => { if(state.active != null) renderButton(); else if(Date.now() % 15000 < 1000) render(); }, 1000);
+  if(state.active != null) keepAwake(true);
+  try{ navigator.storage?.persist?.(); }catch(e){}
+})();
+</script>
+</body>
+</html>
