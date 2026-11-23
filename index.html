@@ -123,11 +123,12 @@ td.x{width:1%;white-space:nowrap;text-align:right}
     <p class="note muted">Duración: desde que empieza hasta que termina. Frecuencia: desde el inicio de una hasta el inicio de la siguiente. Esto es una ayuda para registrar, no reemplaza lo que indique la obstetra.</p>
     <div class="note">
       <h2>Copia de respaldo</h2>
-      <p class="muted" style="margin:6px 0 10px">El registro queda en este navegador. Si vas a borrar datos del navegador o cambiar de celular, bajate una copia primero.</p>
+      <p class="muted" style="margin:6px 0 10px">"Copiar para WhatsApp" arma un texto para mandarle a la obstetra. "Bajar planilla" guarda todo en una tabla que se abre en Números o Excel y que después se puede volver a cargar acá.</p>
       <div class="row" style="justify-content:flex-start">
-        <button class="btn" id="export">Bajar copia</button>
-        <label class="btn" for="import-file">Cargar copia</label>
-        <input type="file" id="import-file" accept=".json,application/json" hidden>
+        <button class="btn" id="share-txt">Copiar para WhatsApp</button>
+        <button class="btn" id="export">Bajar planilla</button>
+        <label class="btn" for="import-file">Cargar planilla</label>
+        <input type="file" id="import-file" accept=".csv,text/csv,.json,application/json,text/plain" hidden>
       </div>
       <p class="muted" id="backup-msg" style="margin:8px 0 0"></p>
     </div>
@@ -309,23 +310,58 @@ td.x{width:1%;white-space:nowrap;text-align:right}
     if(t.id === "wipe-no"){ pendingWipe = false; render(); }
     if(t.id === "wipe-yes"){ const ids = state.items.map(i=>i.id); state.items = []; state.active = null; pendingWipe = false; saveLocal(); render(); }
   });
-  document.getElementById("export").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify({app:"contracciones", v:1, exportado:new Date().toISOString(), items:state.items}, null, 1)], {type:"application/json"});
+  const fecha = t => { const d = new Date(t); return pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear(); };
+  function rowsForExport(){
+    const all = done();
+    return all.map((it,i) => ({ fecha: fecha(it.start), empezo: hhmm(it.start), termino: hhmm(it.end), duro: mmss(it.end-it.start), cada: i>0 ? mmss(it.start-all[i-1].start) : "" }));
+  }
+  $("export").addEventListener("click", () => {
+    const rows = rowsForExport();
+    const lines = ["Fecha,Empezó,Terminó,Duró (min:seg),Cada cuánto (min:seg)"].concat(rows.map(r => [r.fecha,r.empezo,r.termino,r.duro,r.cada].join(",")));
+    const blob = new Blob(["\ufeff" + lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = "contracciones-" + dayKey(Date.now()) + ".json"; document.body.appendChild(a); a.click(); a.remove();
+    a.download = "contracciones-" + dayKey(Date.now()) + ".csv"; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    $("backup-msg").textContent = "Copia descargada con " + state.items.length + " contracciones.";
+    $("backup-msg").textContent = "Planilla descargada con " + rows.length + " contracciones.";
   });
-  document.getElementById("import-file").addEventListener("change", async e => {
+  $("share-txt").addEventListener("click", async () => {
+    const h = lastHour(), rows = rowsForExport();
+    let txt = "Contracciones\n";
+    if(h.n) txt += "Última hora: " + h.n + " contracciones, duran " + mmss(h.avgDur) + " en promedio" + (h.avgInt != null ? ", cada " + mmss(h.avgInt) : "") + "\n";
+    txt += "\n";
+    let lastF = "";
+    rows.slice(-20).forEach(r => { if(r.fecha !== lastF){ txt += r.fecha + "\n"; lastF = r.fecha; } txt += r.empezo.slice(0,5) + " · duró " + r.duro + (r.cada ? " · cada " + r.cada : "") + "\n"; });
+    if(rows.length > 20) txt += "(últimas 20 de " + rows.length + ")\n";
+    try{
+      if(navigator.share){ await navigator.share({text: txt}); $("backup-msg").textContent = ""; return; }
+    }catch(e){ if(e && e.name === "AbortError") return; }
+    try{ await navigator.clipboard.writeText(txt); $("backup-msg").textContent = "Copiado. Pegalo en WhatsApp."; }
+    catch(e){ $("backup-msg").textContent = "No se pudo copiar automáticamente."; }
+  });
+  function parseCSV(text){
+    const out = [];
+    text.replace(/^\ufeff/,"").split(/\r?\n/).slice(1).forEach(line => {
+      const [f, e1, e2] = line.split(/[,;]/); if(!f || !e1 || !e2) return;
+      const [dd,mm,yy] = f.trim().split("/").map(Number);
+      const mk = hms => { const [H,M,S] = hms.trim().split(":").map(Number); return new Date(yy, mm-1, dd, H, M, S||0).getTime(); };
+      const st = mk(e1); let en = mk(e2); if(en < st) en += 864e5;
+      if(!isNaN(st) && !isNaN(en)) out.push({id:"c"+st, start:st, end:en});
+    });
+    return out;
+  }
+  $("import-file").addEventListener("change", async e => {
     const f = e.target.files[0]; if(!f) return;
     try{
-      const data = JSON.parse(await f.text());
-      const list = (data.items || []).filter(i => i && typeof i.start === "number");
+      const text = await f.text(); let list;
+      if(text.trim().startsWith("{")) list = (JSON.parse(text).items || []).filter(i => i && typeof i.start === "number");
+      else list = parseCSV(text);
+      if(!list.length) throw 0;
       const map = new Map(state.items.map(i => [i.id, i]));
-      let added = 0; list.forEach(i => { const id = i.id || ("c" + i.start); if(!map.has(id)){ map.set(id, {id, start:i.start, end:i.end ?? null}); added++; } });
+      const near = st => state.items.some(x => Math.abs(x.start - st) < 1500);
+      let added = 0; list.forEach(i => { const id = i.id || ("c" + i.start); if(!map.has(id) && !near(i.start)){ map.set(id, {id, start:i.start, end:i.end ?? null}); added++; } });
       state.items = [...map.values()].sort((a,b)=>a.start-b.start); saveLocal(); render();
       $("backup-msg").textContent = "Se cargaron " + added + " contracciones nuevas.";
-    }catch(err){ $("backup-msg").textContent = "Ese archivo no es una copia válida de esta app."; }
+    }catch(err){ $("backup-msg").textContent = "Ese archivo no es una planilla de esta app."; }
     e.target.value = "";
   });
   document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ if(state.active != null) keepAwake(true); render(); } });
